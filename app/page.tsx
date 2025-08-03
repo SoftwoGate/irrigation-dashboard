@@ -1,103 +1,118 @@
-import Image from "next/image";
+"use client";
+import React, { useEffect, useState } from "react";
+import { database } from "../lib/firebaseConfig";
+import { ref, onValue, set, serverTimestamp } from "firebase/database";
 
 export default function Home() {
-  return (
-    <div className="font-sans grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="font-mono list-inside list-decimal text-sm/6 text-center sm:text-left">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] font-mono font-semibold px-1 py-0.5 rounded">
-              app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
+  const [moisture, setMoisture] = useState(0);
+  const [humidity, setHumidity] = useState(0);
+  const [temperature, setTemperature] = useState(0);
+  const [relay, setRelay] = useState(false);
+  const [mode, setMode] = useState("manual");
+  const [online, setOnline] = useState(false);
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+  useEffect(() => {
+    const now = Date.now();
+
+    onValue(ref(database, "moisture"), (snap) => setMoisture(snap.val()));
+    onValue(ref(database, "humidity"), (snap) => setHumidity(snap.val()));
+    onValue(ref(database, "temperature"), (snap) => setTemperature(snap.val()));
+    onValue(ref(database, "relay"), (snap) => setRelay(snap.val()));
+    onValue(ref(database, "mode"), (snap) => setMode(snap.val()));
+    onValue(ref(database, "lastOnline"), (snap) => {
+      const diff = now - snap.val();
+      setOnline(diff < 10000); // if ESP32 updated within 10 sec
+    });
+  }, []);
+
+  const toggleRelay = () => {
+    if (mode === "manual") set(ref(database, "relay"), !relay);
+  };
+
+  const toggleMode = () => {
+    set(ref(database, "mode"), mode === "manual" ? "auto" : "manual");
+  };
+
+  return (
+    <div className="min-h-screen bg-gray-100 flex flex-col items-center p-6">
+      <div className="w-full max-w-xl bg-white rounded-xl shadow-lg p-6 space-y-6">
+        <h1 className="text-3xl font-bold text-center text-green-700">Irrigation System</h1>
+
+        <div className="flex justify-center items-center gap-2 text-sm">
+          <span
+            className={`h-3 w-3 rounded-full ${online ? "bg-green-500" : "bg-red-500"
+              }`}
+          ></span>
+          <span className="text-gray-600">{online ? "Online" : "Offline"}</span>
         </div>
-      </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
+
+        {/* Sensor Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <SensorCard label="Moisture" value={moisture} unit="" color="blue" />
+          <SensorCard label="Temperature" value={temperature} unit="°C" color="red" />
+          <SensorCard label="Humidity" value={humidity} unit="%" color="green" />
+        </div>
+
+        {/* Mode Toggle */}
+        <div className="flex items-center justify-between">
+          <p className="font-semibold text-gray-700">Mode: {mode.toUpperCase()}</p>
+
+          <label className="relative inline-flex items-center cursor-pointer">
+            <input
+              type="checkbox"
+              className="sr-only peer"
+              checked={mode === "auto"}
+              onChange={toggleMode}
+            />
+            <div className="w-11 h-6 bg-gray-300 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-green-500 rounded-full peer peer-checked:bg-green-500 transition-all duration-300"></div>
+            <span className="absolute left-1 top-1 w-4 h-4 bg-white rounded-full transition-all duration-300 peer-checked:translate-x-5"></span>
+          </label>
+        </div>
+
+
+        {/* Relay Button */}
+        <button
+          onClick={toggleRelay}
+          disabled={mode !== "manual"}
+          className={`w-full py-3 rounded-lg text-white text-lg font-semibold transition-all ${mode !== "manual"
+              ? "bg-gray-400 cursor-not-allowed"
+              : relay
+                ? "bg-red-600 hover:bg-red-700"
+                : "bg-blue-600 hover:bg-blue-700"
+            }`}
         >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
+          {relay ? "Turn OFF Pump" : "Turn ON Pump"}
+        </button>
+      </div>
     </div>
   );
 }
+
+// Sensor Card Component
+type SensorCardProps = {
+  label: string;
+  value: number;
+  unit: string;
+  color: "blue" | "red" | "green" | "yellow" | "purple"; // extend as needed
+};
+
+const SensorCard = ({ label, value, unit, color }: SensorCardProps) => {
+  const colorClasses: Record<string, string> = {
+    blue: "bg-blue-100 text-blue-800",
+    red: "bg-red-100 text-red-800",
+    green: "bg-green-100 text-green-800",
+    yellow: "bg-yellow-100 text-yellow-800",
+    purple: "bg-purple-100 text-purple-800",
+  };
+
+  return (
+    <div className={`p-4 rounded-xl shadow-md text-center ${colorClasses[color]}`}>
+      <div className="text-xl font-bold">{label}</div>
+      <div className="text-3xl mt-2">
+        {value}
+        {unit}
+      </div>
+    </div>
+  );
+};
+
