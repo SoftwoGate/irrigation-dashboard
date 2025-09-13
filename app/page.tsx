@@ -116,7 +116,7 @@ export default function Home() {
 
         {/* Sensor Cards */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <SensorCard label="Moisture" value={moisture} unit="" color="blue" />
+          <SensorCard label="Moisture" value={moisture} unit="%" color="blue" />
           <SensorCard label="Temperature" value={temperature} unit="°C" color="red" />
           <SensorCard label="Humidity" value={humidity} unit="%" color="green" />
         </div>
